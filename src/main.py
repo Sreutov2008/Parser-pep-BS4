@@ -19,9 +19,20 @@ def whats_new(session):
         return None
     soup = BeautifulSoup(response.text, features='lxml')
 
-    main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
-    div_with_ul = find_tag(main_div, 'div', attrs={'class': 'toctree-wrapper'})
-    sections_by_python = div_with_ul.find_all('li', attrs={'class': 'toctree-l1'})
+    main_div = find_tag(
+        soup,
+        'section',
+        attrs={'id': 'what-s-new-in-python'}
+    )
+    div_with_ul = find_tag(
+        main_div,
+        'div',
+        attrs={'class': 'toctree-wrapper'}
+    )
+    sections_by_python = div_with_ul.find_all(
+        'li',
+        attrs={'class': 'toctree-l1'}
+    )
 
     results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
     for section in tqdm(sections_by_python):
@@ -77,9 +88,21 @@ def download(session):
     if response is None:
         return
     soup = BeautifulSoup(response.text, features='lxml')
-    main_tag = find_tag(soup, 'div', {'role': 'main'})
-    table_tag = find_tag(main_tag, 'table', {'class': 'docutils'})
-    pdf_a4_tag = find_tag(table_tag, 'a', {'href': re.compile(r'.+pdf-a4\.zip$')})
+    main_tag = find_tag(
+        soup,
+        'div',
+        {'role': 'main'}
+    )
+    table_tag = find_tag(
+        main_tag,
+        'table',
+        {'class': 'docutils'}
+    )
+    pdf_a4_tag = find_tag(
+        table_tag,
+        'a',
+        {'href': re.compile(r'.+pdf-a4\.zip$')}
+    )
     pdf_a4_link = pdf_a4_tag['href']
     archive_url = urljoin(downloads_url, pdf_a4_link)
     print(archive_url)
@@ -98,8 +121,15 @@ def pep(session):
     response = get_response(session, PEPS_URL)
     if response is None:
         return
-    soup = BeautifulSoup(response.text, features='lxml')
-    pep_table = find_tag(soup, 'section', {'id': 'numerical-index'})
+    soup = BeautifulSoup(
+        response.text,
+        features='lxml'
+    )
+    pep_table = find_tag(
+        soup,
+        'section',
+        {'id': 'numerical-index'}
+    )
     pep_table_data = find_tag(pep_table, 'tbody')
     pep_tags = pep_table_data.find_all('tr')
 
@@ -115,8 +145,15 @@ def pep(session):
         if response is None:
             continue
 
-        soup = BeautifulSoup(response.text, features='lxml')
-        description = find_tag(soup, 'dl', attrs={'class': 'rfc2822 field-list simple'})
+        soup = BeautifulSoup(
+            response.text,
+            features='lxml'
+        )
+        description = find_tag(
+            soup,
+            'dl',
+            attrs={'class': 'rfc2822 field-list simple'}
+        )
         status_element = description.find(string="Status")
         status = status_element.find_parent().find_next_sibling().text
         pep_list.append(status)
