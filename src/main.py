@@ -1,4 +1,4 @@
-from constants import BASE_DIR, MAIN_DOC_URL
+from constants import BASE_DIR, MAIN_DOC_URL, PEPS_URL, EXPECTED_STATUS
 import requests_cache
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -11,53 +11,31 @@ from utils import get_response, find_tag
 
 
 def whats_new(session):
-    # Вместо константы WHATS_NEW_URL, используйте переменную whats_new_url.
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
-    # Загрузка веб-страницы с кешированием.
-    # session = requests_cache.CachedSession()
-    #response = session.get(whats_new_url)
-    #response.encoding = 'utf-8'
     response = get_response(session, whats_new_url)
     if response is None:
-        # Если основная страница не загрузится, программа закончит работу.
-        return
-    # Создание "супа".
+        return None
     soup = BeautifulSoup(response.text, features='lxml')
 
-    # Шаг 1-й: поиск в "супе" тега section с нужным id. Парсеру нужен только
-    # первый элемент, поэтому используется метод find().
     main_div = find_tag(soup, 'section', attrs={'id': 'what-s-new-in-python'})
-
-    # Шаг 2-й: поиск внутри main_div следующего тега div с классом toctree-wrapper.
-    # Здесь тоже нужен только первый элемент, используется метод find().
     div_with_ul = find_tag(main_div, 'div', attrs={'class': 'toctree-wrapper'})
-
-    # Шаг 3-й: поиск внутри div_with_ul всех элементов списка li с классом toctree-l1.
-    # Нужны все теги, поэтому используется метод find_all().
     sections_by_python = div_with_ul.find_all('li', attrs={'class': 'toctree-l1'})
 
-    # Печать первого найденного элемента.
-    # Инициализируйте пустой список results.
-    results = [('Ссылка на статью', 'Заголовок', 'Редактор, автор')]
+    results = [('Ссылка на статью', 'Заголовок', 'Редактор, Автор')]
     for section in tqdm(sections_by_python):
         version_a_tag = find_tag(section, 'a')
         version_link = urljoin(whats_new_url, version_a_tag['href'])
-        #response = session.get(version_link)
-        #response.encoding = 'utf-8'
         response = get_response(session, version_link)
         if response is None:
-            # Если страница не загрузится, программа перейдёт к следующей ссылке.
             continue
         soup = BeautifulSoup(response.text, 'lxml')
         h1 = find_tag(soup, 'h1')
         dl = find_tag(soup, 'dl')
         dl_text = dl.text.replace('\n', ' ')
-        # Добавьте в список ссылки и текст из тегов h1 и dl в виде кортежа.
         results.append(
             (version_link, h1.text, dl_text)
         )
 
-    # Печать списка с данными.
     return results
 
 
@@ -149,11 +127,59 @@ def download(session):
     logging.info(f'Архив был загружен и сохранён: {archive_path}')
 
 
+def pep(session):
+    response = get_response(session, PEPS_URL)
+    if response is None:
+        return
+    # Создание "супа".
+    soup = BeautifulSoup(response.text, features='lxml')
+    pep_table = find_tag(soup, 'section', {'id': 'numerical-index'})
+    pep_table_data = find_tag(pep_table, 'tbody')
+    pep_tags = pep_table_data.find_all('tr')
+    errors = []
+    pep_list = []
+    statuses = []
+    result = [("Статус", "Количество")]
+    for pep_tag in tqdm(pep_tags):
+        preview_status = find_tag(pep_tag, 'abbr').text[1:]
+        href = find_tag(pep_tag, 'a')['href']
+        pep_link = urljoin(PEPS_URL, href)
+        response = get_response(session, pep_link)
+        if response is None:
+            continue
+
+        soup = BeautifulSoup(response.text, features='lxml')
+        description = find_tag(soup, 'dl',  attrs={'class': 'rfc2822 field-list simple'})
+        status_element = description.find(string="Status")
+        status = status_element.find_parent().find_next_sibling().text
+        pep_list.append(status)
+
+        try:
+            if status not in EXPECTED_STATUS[preview_status]:
+                errors.append((pep_link, preview_status, status))
+
+        except KeyError:
+            logging.error('Неизвестный статус:' f'{preview_status}')
+
+    for status_list in EXPECTED_STATUS.values():
+        for status in status_list:
+            if status not in statuses:
+                statuses.append(status)
+                result.append((status, pep_list.count(status)))
+
+    result.append(("Total", len(pep_list)))
+        #print(pep_list)
+    return result
+
+
+
+
 # Скопируйте весь код ниже.
 MODE_TO_FUNCTION = {
     'whats-new': whats_new,
     'latest-versions': latest_versions,
     'download': download,
+    'pep': pep
 }
 
 
