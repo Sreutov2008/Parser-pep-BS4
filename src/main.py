@@ -135,7 +135,7 @@ def pep(session):
 
     errors = []
     pep_list = []
-    result = [("Статус", "Количество")]
+
 
     for pep_tag in tqdm(pep_tags):
         preview_status = find_tag(pep_tag, 'abbr').text[1:]
@@ -165,12 +165,19 @@ def pep(session):
         except KeyError:
             logging.error('Неизвестный статус:' f'{preview_status}')
 
-    result += ([(status, pep_list.count(status))
-                for status_list in EXPECTED_STATUS.values()
-                for status in status_list
-                ])
-    result.append(("Total", len(pep_list)))
-    return result
+    #result = ([("Статус", "Количество")], [(status, pep_list.count(status))
+       #         for status_list in EXPECTED_STATUS.values()
+      #          for status in status_list
+     #           ])
+    #result.append(("Total", len(pep_list)))
+    #
+    #return result
+
+    return [
+        ('Статус', 'Количество'),
+        *[(status, pep_list.count(status)) for status_list in EXPECTED_STATUS.values() for status in status_list],
+        ('Всего', len(pep_list))
+    ]
 
 
 MODE_TO_FUNCTION = {
