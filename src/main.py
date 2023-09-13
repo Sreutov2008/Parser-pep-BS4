@@ -35,7 +35,9 @@ def whats_new(session):
         try:
             soup = get_soup(session, version_link)
         except ConnectionError:
-            DelayedLogger.add_message(GET_RESPONSE_ERROR.format(url=version_link))
+            DelayedLogger.add_message(
+                GET_RESPONSE_ERROR.format(url=version_link)
+            )
             continue
         results.append(
             (version_link,
