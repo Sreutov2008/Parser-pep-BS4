@@ -11,7 +11,7 @@ DATETIME_FORMAT = '%Y-%m-%d_%H-%M-%S'
 
 PRETTY_OUTPUT = 'pretty'
 FILE_OUTPUT = 'file'
-DEFAULT_OUTPUTS = 'default'
+DEFAULT_OUTPUTS = None
 
 LOG_DIR = BASE_DIR / 'logs'
 LOG_FILE = LOG_DIR / 'parser.log'

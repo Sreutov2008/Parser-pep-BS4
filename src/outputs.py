@@ -45,8 +45,4 @@ OUTPUT_METHODS = {
 
 
 def control_output(results, cli_args):
-    output = 'default'
-    if cli_args.output:
-        output = cli_args.output
-
-    OUTPUT_METHODS[output](results, cli_args)
+    OUTPUT_METHODS.get(cli_args.output)(results, cli_args)

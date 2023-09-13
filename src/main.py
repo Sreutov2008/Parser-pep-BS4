@@ -29,19 +29,21 @@ def whats_new(session):
         '#what-s-new-in-python div.toctree-wrapper li.toctree-l1 > a'
     )
     results = RESULTS_WHATS_NEWS
+    delayed_logger = DelayedLogger()
     for section in tqdm(sections_by_python):
         version_link = urljoin(whats_new_url, section['href'])
         try:
             soup = get_soup(session, version_link)
         except ConnectionError:
-            raise logging.error(GET_RESPONSE_ERROR.format(url=version_link))
-
+            DelayedLogger.add_message(GET_RESPONSE_ERROR.format(url=version_link))
+            continue
         results.append(
             (version_link,
              find_tag(soup, 'h1').text,
              find_tag(soup, 'dl').text.replace('\n', ' ')
              )
         )
+    delayed_logger.log(logging.warning)
     return results
 
 
@@ -92,7 +94,6 @@ def pep(session):
     delayed_logger = DelayedLogger()
     soup = get_soup(session, PEPS_URL)
     pep_tags = soup.select('#numerical-index tbody tr')
-    errors = []
     pep_list = []
 
     for pep_tag in tqdm(pep_tags):
@@ -110,14 +111,14 @@ def pep(session):
 
         try:
             if status not in EXPECTED_STATUS[preview_status]:
-                errors.append((pep_link, preview_status, status))
+                delayed_logger.add_message((pep_link, preview_status, status))
 
         except KeyError:
             delayed_logger.add_message(
                 ANEXPECTED_STATUS.format(preview_status=preview_status)
             )
             continue
-
+    delayed_logger.log(logging.warning)
     return [
         ('Статус', 'Количество'),
         *[

@@ -14,8 +14,10 @@ def get_response(session, url, encoding='utf-8'):
         response = session.get(url)
         response.encoding = encoding
         return response
-    except RequestException:
-        raise ConnectionError(GET_RESPONSE_ERROR.format(url=url))
+    except RequestException as e:
+        raise ConnectionError(
+            GET_RESPONSE_ERROR.format(url=url, error=str(e))
+        )
 
 
 def get_soup(session, url, features="lxml"):
