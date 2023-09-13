@@ -6,26 +6,36 @@ import requests_cache
 from tqdm import tqdm
 
 from configs import configure_argument_parser, configure_logging
-from constants import (ANEXPECTED_STATUS, ARCHIVE_PATH, BASE_DIR,
-                       COMMAND_ARGUMENTS, DOWNLOADS_DIR, ERROR,
-                       EXPECTED_STATUS, MAIN_DOC_URL, NONE_ALL_VERSION,
-                       PARSER_FINISH, PARSER_START, PEPS_URL,
-                       RESULTS_LATEST_VERSION, RESULTS_WHATS_NEWS)
+from constants import (BASE_DIR, DOWNLOADS_DIR, EXPECTED_STATUS, MAIN_DOC_URL,
+                       PEPS_URL, RESULTS_LATEST_VERSION, RESULTS_WHATS_NEWS)
 from outputs import control_output
-from utils import find_tag, get_soup
+from utils import GET_RESPONSE_ERROR, DelayedLogger, find_tag, get_soup
+
+ANEXPECTED_STATUS = 'Неизвестный статус: {preview_status}'
+ARCHIVE_PATH = 'Архив был загружен и сохранён: {archive_path}'
+COMMAND_ARGUMENTS = 'Аргументы командной строки: {args}'
+PARSER_FINISH = 'Парсер завершил работу.'
+PARSER_START = 'Парсер запущен!'
+ERROR = 'Произошла ошибка: {e}'
+NONE_ALL_VERSION = 'Не удалось найти ссылки a с текстом "All versions"'
+FILE_RESULT = 'Файл с результатами был сохранён: {file_path}'
+ERROR_TAG = 'Не найден тег {tag} {attrs}'
 
 
 def whats_new(session):
     whats_new_url = urljoin(MAIN_DOC_URL, 'whatsnew/')
     soup = get_soup(session, whats_new_url)
     sections_by_python = soup.select(
-        '#what-s-new-in-python div.toctree-wrapper li.toctree-l1'
+        '#what-s-new-in-python div.toctree-wrapper li.toctree-l1 > a'
     )
     results = RESULTS_WHATS_NEWS
     for section in tqdm(sections_by_python):
-        version_a_tag = find_tag(section, 'a')
-        version_link = urljoin(whats_new_url, version_a_tag['href'])
-        soup = get_soup(session, version_link)
+        version_link = urljoin(whats_new_url, section['href'])
+        try:
+            soup = get_soup(session, version_link)
+        except ConnectionError:
+            raise logging.error(GET_RESPONSE_ERROR.format(url=version_link))
+
         results.append(
             (version_link,
              find_tag(soup, 'h1').text,
@@ -79,6 +89,7 @@ def download(session):
 
 
 def pep(session):
+    delayed_logger = DelayedLogger()
     soup = get_soup(session, PEPS_URL)
     pep_tags = soup.select('#numerical-index tbody tr')
     errors = []
@@ -88,7 +99,11 @@ def pep(session):
         preview_status = find_tag(pep_tag, 'abbr').text[1:]
         href = find_tag(pep_tag, 'a')['href']
         pep_link = urljoin(PEPS_URL, href)
-        soup = get_soup(session, pep_link)
+        try:
+            soup = get_soup(session, pep_link)
+        except ConnectionError:
+            delayed_logger.add_message(GET_RESPONSE_ERROR.format(url=pep_link))
+            continue
         status = soup.find('dl', class_='rfc2822 field-list simple').find(
             string="Status").find_parent().find_next_sibling().text
         pep_list.append(status)
@@ -98,9 +113,10 @@ def pep(session):
                 errors.append((pep_link, preview_status, status))
 
         except KeyError:
-            logging.error(
+            delayed_logger.add_message(
                 ANEXPECTED_STATUS.format(preview_status=preview_status)
             )
+            continue
 
     return [
         ('Статус', 'Количество'),
@@ -127,12 +143,13 @@ def main():
     arg_parser = configure_argument_parser(MODE_TO_FUNCTION.keys())
     args = arg_parser.parse_args()
     logging.info(COMMAND_ARGUMENTS.format(args=args))
-    session = requests_cache.CachedSession()
-    if args.clear_cache:
-        session.cache.clear()
 
-    parser_mode = args.mode
     try:
+        session = requests_cache.CachedSession()
+        if args.clear_cache:
+            session.cache.clear()
+
+        parser_mode = args.mode
         results = MODE_TO_FUNCTION[parser_mode](session)
 
         if results is not None:

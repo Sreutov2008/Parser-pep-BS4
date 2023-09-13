@@ -1,34 +1,44 @@
-import logging
-
 from bs4 import BeautifulSoup
+from requests import RequestException
 
-from constants import ERROR, ERROR_TAG
-from exceptions import ParserFindTagException, ParserUrlException
+from exceptions import ParserFindTagException
+
+ERROR = 'Произошла ошибка: {e}'
+ERROR_TAG = 'Не найден тег {tag} {attrs}'
+ERROR_URL = 'Не найден url {url}'
+GET_RESPONSE_ERROR = 'Возникла ошибка при загрузке страницы {url}'
 
 
 def get_response(session, url, encoding='utf-8'):
-    response = session.get(url)
-    response.encoding = encoding
-    response.raise_for_status()
-    return response
-
-
-def get_soup(session, url):
     try:
-        response = get_response(session, url)
-        if response is None:
-            return
-    except ParserUrlException:
-        logging.error(ERROR.format(e=url))
-    soup = BeautifulSoup(response.text, features="lxml")
+        response = session.get(url)
+        response.encoding = encoding
+        return response
+    except RequestException:
+        raise ConnectionError(GET_RESPONSE_ERROR.format(url=url))
 
-    return soup
+
+def get_soup(session, url, features="lxml"):
+    return BeautifulSoup(
+        get_response(session, url).text,
+        features=features
+    )
 
 
 def find_tag(soup, tag, attrs=None):
     searched_tag = soup.find(tag, attrs=(attrs or {}))
     if searched_tag is None:
-        error_message = ERROR_TAG.format(tag=tag, attrs=attrs)
-        logging.error(error_message, stack_info=True)
-        raise ParserFindTagException(error_message)
+        raise ParserFindTagException(ERROR_TAG.format(tag=tag, attrs=attrs))
     return searched_tag
+
+
+class DelayedLogger:
+    def __init__(self):
+        self.__messages = []
+
+    def add_message(self, message):
+        self.__messages.append(message)
+
+    def log(self, logger):
+        for error_message in self.__messages:
+            logger(error_message)
